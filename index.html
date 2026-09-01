@@ -1,0 +1,87 @@
+<!doctype html><html lang="id"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#1565c0"><meta name="mobile-web-app-capable" content="yes">
+<link rel="manifest" href="manifest.json"><title>GudangKu</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif;background:#f4f6f8;color:#202124}
+header{background:#1565c0;color:#fff;padding:17px 15px;position:sticky;top:0;z-index:5}h1{margin:0;font-size:21px}.period{font-size:12px;margin-top:4px;opacity:.9}
+main{padding:13px 13px 84px}.card{background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 2px 8px #0001}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}.stat{text-align:center;padding:8px 2px}.num{font-size:19px;font-weight:bold}.label{font-size:10px;color:#666}
+button{border:0;border-radius:9px;padding:10px 12px;font-weight:bold}.primary{background:#1565c0;color:#fff;width:100%}.secondary{background:#e8eef7;color:#1565c0}.danger{background:#ffebee;color:#c62828}
+input,select{width:100%;padding:11px;border:1px solid #ddd;border-radius:9px;margin:5px 0 11px;font-size:15px}.row{display:flex;gap:8px}.row>*{flex:1}
+.tabs{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid #ddd;display:grid;grid-template-columns:repeat(5,1fr);z-index:10}.tabs button{background:#fff;border-radius:0;padding:8px 2px;font-size:10px;color:#555}.tabs button.active{color:#1565c0}
+.item{padding:11px 0;border-bottom:1px solid #eee}.muted{color:#777;font-size:11px}.title{font-weight:bold;margin-bottom:9px}.actions{display:flex;gap:5px;margin-top:8px}.actions button{padding:7px 8px;font-size:10px}
+.empty{text-align:center;color:#888;padding:20px}.day{border-left:4px solid #1565c0;padding-left:11px}.big{font-size:18px;font-weight:bold}.green{color:#2e7d32}
+table{width:100%;border-collapse:collapse;font-size:10px}th,td{text-align:left;padding:7px 4px;border-bottom:1px solid #eee}th{color:#666}
+.notice{background:#fff8e1;border:1px solid #ffe082;padding:10px;border-radius:10px;font-size:12px}
+.modal{position:fixed;inset:0;background:#0008;display:flex;align-items:flex-end;z-index:30}.modalbox{background:#fff;width:100%;border-radius:18px 18px 0 0;padding:17px;max-height:90vh;overflow:auto}
+</style></head><body>
+<header><h1>📦 GudangKu</h1><div class="period" id="period"></div></header><main id="app"></main><div id="modal"></div>
+<nav class="tabs"><button onclick="show('home')" id="t-home">🏠<br>Beranda</button><button onclick="show('stock')" id="t-stock">📦<br>Stok</button><button onclick="show('sale')" id="t-sale">🛒<br>Jual</button><button onclick="show('daily')" id="t-daily">📊<br>Rekap</button><button onclick="show('summary')" id="t-summary">📋<br>Mingguan</button></nav>
+<script>
+const KEY='gudangku_v6',DAYS=['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
+let db=JSON.parse(localStorage.getItem(KEY)||'{"products":[],"sales":[],"adds":[],"lastReset":""}');
+db.sales.forEach((x,i)=>{if(!x.id)x.id='legacy-'+i+'-'+x.date});
+function save(){localStorage.setItem(KEY,JSON.stringify(db))}function now(){return new Date()}function pad(n){return String(n).padStart(2,'0')}
+function localDate(d=now()){return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`}function fmtDate(s){let [y,m,d]=s.split('-');return `${d}-${m}-${y}`}
+function rupiah(n){return new Intl.NumberFormat('id-ID',{style:'currency',currency:'IDR',maximumFractionDigits:0}).format(n)}
+function weekStart(d=now()){let x=new Date(d.getFullYear(),d.getMonth(),d.getDate());x.setDate(x.getDate()-x.getDay());return localDate(x)}
+function weekEnd(d=now()){let x=new Date(d.getFullYear(),d.getMonth(),d.getDate());x.setDate(x.getDate()+(6-x.getDay()));return localDate(x)}
+function weeklySales(){return db.sales.filter(x=>x.date>=weekStart()&&x.date<=weekEnd())}
+function stock(p){let a=db.adds.filter(x=>x.pid===p.id).reduce((z,x)=>z+x.qty,0),s=db.sales.filter(x=>x.pid===p.id).reduce((z,x)=>z+x.qty,0);return p.initial+a-s}
+function resetCheck(){let d=now(),k=localDate(d);if(d.getDay()===6&&db.lastReset!==k){db.lastReset=k;save()}}
+function totals(){let s=weeklySales();return{qty:s.reduce((z,x)=>z+x.qty,0),val:s.reduce((z,x)=>z+x.qty*x.price,0)}}
+function show(page){resetCheck();document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));document.getElementById('t-'+page).classList.add('active');({home,stock:stocks,sale,daily,summary})[page]()}
+function home(){let t=totals();app.innerHTML=`<div class="card"><b>📅 ${DAYS[now().getDay()]}, ${fmtDate(localDate())}</b><br><span class="muted">Tanggal mengikuti kalender HP.</span></div><div class="card stats"><div class="stat"><div class="num">${db.products.length}</div><div class="label">Produk</div></div><div class="stat"><div class="num">${t.qty}</div><div class="label">Terjual</div></div><div class="stat"><div class="num" style="font-size:12px">${rupiah(t.val)}</div><div class="label">Uang masuk</div></div></div><div class="card"><button class="primary" onclick="show('sale')">＋ Input Penjualan</button><br><br><button class="secondary" style="width:100%" onclick="show('summary')">📋 Ringkasan Mingguan</button></div>`}
+function stocks(){let rows=db.products.map(p=>`<div class="item"><b>${p.name}</b><br><span class="muted">Harga ${rupiah(p.price)} · Stok awal ${p.initial}</span><br><span class="green"><b>Sisa ${stock(p)} pcs</b></span><div class="actions"><button class="secondary" onclick="addStock('${p.id}')">＋ Add</button><button class="secondary" onclick="editProduct('${p.id}')">✏️ Edit</button><button class="danger" onclick="delProduct('${p.id}')">Hapus</button></div></div>`).join('');app.innerHTML=`<div class="card"><div class="title">Tambah Produk</div><input id="pn" placeholder="Nama produk"><div class="row"><input id="pi" type="number" min="0" placeholder="Stok awal"><input id="pp" type="number" min="0" placeholder="Harga"></div><button class="primary" onclick="addProduct()">Simpan Produk</button></div><div class="card"><div class="title">Daftar Produk</div>${rows||'<div class="empty">Belum ada produk.</div>'}</div>`}
+function addProduct(){let name=pn.value.trim(),initial=+pi.value,price=+pp.value;if(!name)return alert('Isi nama produk.');db.products.push({id:Date.now().toString(),name,initial,price});save();stocks()}
+function addStock(id){let p=db.products.find(x=>x.id===id),q=+prompt('Tambah stok '+p.name+':','0');if(q>0){db.adds.push({id:Date.now().toString(),pid:id,qty:q,date:localDate()});save();stocks()}}
+function editProduct(id){let p=db.products.find(x=>x.id===id);modal.innerHTML=`<div class="modal" onclick="if(event.target===this)closeModal()"><div class="modalbox"><h3>✏️ Edit Produk</h3><input id="en" value="${p.name}"><input id="eprice" type="number" value="${p.price}"><div class="actions"><button class="secondary" style="flex:1" onclick="closeModal()">Batal</button><button class="primary" style="flex:1" onclick="saveProduct('${id}')">Simpan</button></div></div></div>`}
+function saveProduct(id){let p=db.products.find(x=>x.id===id),n=en.value.trim(),price=+eprice.value;if(!n)return alert('Isi nama produk.');p.name=n;p.price=price;save();closeModal();stocks()}
+function delProduct(id){if(confirm('Hapus produk? Riwayat penjualan lama tetap tersimpan.')){db.products=db.products.filter(x=>x.id!==id);save();stocks()}}
+function sale(){let opts=db.products.map(p=>`<option value="${p.id}">${p.name} (sisa ${stock(p)})</option>`).join(''),dn=DAYS[now().getDay()],def=['Senin','Rabu','Jumat'].includes(dn)?dn:'Senin';app.innerHTML=`<div class="card"><div class="title">Input Penjualan</div><div class="muted">Tanggal transaksi: ${dn}, ${fmtDate(localDate())}</div><br><select id="sp">${opts}</select><input id="sq" type="number" min="1" placeholder="Jumlah terjual"><select id="sd"><option ${def==='Senin'?'selected':''}>Senin</option><option ${def==='Rabu'?'selected':''}>Rabu</option><option ${def==='Jumat'?'selected':''}>Jumat</option></select><button class="primary" onclick="enterSale()">ENTER — Simpan Penjualan</button></div>`}
+function enterSale(){if(!db.products.length)return alert('Tambahkan produk dahulu.');let p=db.products.find(x=>x.id===sp.value),q=+sq.value;if(!q||q<1)return alert('Isi jumlah.');if(q>stock(p))return alert('Jumlah melebihi stok tersedia.');db.sales.push({id:Date.now().toString(),pid:p.id,name:p.name,qty:q,price:p.price,date:localDate(),day:sd.value});save();alert('Penjualan tersimpan.');sale()}
+function daily(){let s=weeklySales(),days=['Senin','Rabu','Jumat'];let blocks=days.map(day=>{let a=s.filter(x=>x.day===day),q=a.reduce((z,x)=>z+x.qty,0),m=a.reduce((z,x)=>z+x.qty*x.price,0),rows=db.products.map(p=>{let n=a.filter(x=>x.pid===p.id).reduce((z,x)=>z+x.qty,0);return n?`<tr><td>${p.name}</td><td>${n}</td><td>${rupiah(n*p.price)}</td><td>${stock(p)}</td></tr>`:''}).join('');return `<div class="card day"><div class="title">📅 ${day}</div><p>Jumlah barang terjual: <span class="big">${q} pcs</span></p><p>Uang masuk: <span class="big">${rupiah(m)}</span></p>${rows?`<table><tr><th>Jenis Barang</th><th>Terjual</th><th>Total Harga</th><th>Sisa</th></tr>${rows}</table>`:'<div class="empty">Belum ada penjualan.</div>'}</div>`}).join('');app.innerHTML=`<div class="card"><div class="title">📊 Rekap Harian</div><div class="muted">Rincian per jenis barang untuk Senin, Rabu, dan Jumat.</div></div>${blocks}`}
+function summary(){
+ let s=weeklySales(),days=['Senin','Rabu','Jumat'];
+ let dayCards=days.map(day=>{
+   let a=s.filter(x=>x.day===day),q=a.reduce((z,x)=>z+x.qty,0),m=a.reduce((z,x)=>z+x.qty*x.price,0);
+   let rows=db.products.map(p=>{
+     let pq=a.filter(x=>x.pid===p.id).reduce((z,x)=>z+x.qty,0);
+     return pq?`<tr><td>${p.name}</td><td>${pq}</td><td>${rupiah(pq*p.price)}</td><td>${stock(p)}</td></tr>`:'';
+   }).join('');
+   return `<div class="card day"><div class="title">📅 ${day}</div>
+   ${rows?`<table><tr><th>Nama Barang</th><th>Jumlah</th><th>Total Omzet</th><th>Sisa Stok</th></tr>${rows}
+   <tr><th>TOTAL</th><th>${q}</th><th>${rupiah(m)}</th><th>-</th></tr></table>`:
+   '<div class="empty">Belum ada penjualan.</div>'}
+   </div>`;
+ }).join('');
+
+ let products=db.products.map(p=>{
+   let dayQty=days.map(d=>s.filter(x=>x.day===d&&x.pid===p.id).reduce((z,x)=>z+x.qty,0));
+   let q=dayQty.reduce((z,x)=>z+x,0),m=q*p.price;
+   return `<tr><td>${p.name}</td><td>${dayQty[0]}</td><td>${dayQty[1]}</td><td>${dayQty[2]}</td><td><b>${q}</b></td><td>${rupiah(m)}</td><td>${stock(p)}</td></tr>`;
+ }).join('');
+
+ let editRows=s.slice().reverse().map(x=>`<tr><td>${x.day}</td><td>${x.name}</td><td>${x.qty}</td><td>${rupiah(x.qty*x.price)}</td><td><button class="secondary" onclick="editSale('${x.id}')">✏️</button><button class="danger" onclick="deleteSale('${x.id}')">🗑️</button></td></tr>`).join('');
+ let t=totals();
+
+ app.innerHTML=`<div class="card"><div class="title">📋 Ringkasan Mingguan</div>
+ <b>${fmtDate(weekStart())} – ${fmtDate(weekEnd())}</b><br>
+ <span class="muted">Rekap penjualan Senin, Rabu, dan Jumat. Nama barang, jumlah terjual, dan total omzet ditampilkan untuk setiap hari.</span></div>
+ ${dayCards}
+ <div class="card"><div class="title">📊 TOTAL MINGGUAN</div>
+ <div>Jumlah seluruh barang terjual: <span class="big">${t.qty} pcs</span></div>
+ <div>Total omzet: <span class="big">${rupiah(t.val)}</span></div>
+ <div>Sisa stok saat ini: <span class="big green">${db.products.reduce((z,p)=>z+stock(p),0)} pcs</span></div></div>
+ <div class="card"><div class="title">📦 Rekap Per Jenis Barang</div>
+ <table><tr><th>Nama Barang</th><th>Senin</th><th>Rabu</th><th>Jumat</th><th>Total</th><th>Total Omzet</th><th>Sisa</th></tr>${products}</table></div>
+ <div class="card"><div class="title">✏️ Edit / Hapus Penjualan Minggu Ini</div>
+ ${editRows?`<table><tr><th>Hari</th><th>Barang</th><th>Jumlah</th><th>Omzet</th><th>Aksi</th></tr>${editRows}</table>`:'<div class="empty">Belum ada transaksi.</div>'}</div>`;
+}
+function editSale(id){let x=db.sales.find(v=>v.id===id);modal.innerHTML=`<div class="modal" onclick="if(event.target===this)closeModal()"><div class="modalbox"><h3>✏️ Edit Penjualan</h3><div class="muted">Tanggal: ${fmtDate(x.date)}</div><select id="ep">${db.products.map(p=>`<option value="${p.id}" ${p.id===x.pid?'selected':''}>${p.name}</option>`).join('')}</select><input id="eq" type="number" min="1" value="${x.qty}"><select id="ed"><option ${x.day==='Senin'?'selected':''}>Senin</option><option ${x.day==='Rabu'?'selected':''}>Rabu</option><option ${x.day==='Jumat'?'selected':''}>Jumat</option></select><div class="actions"><button class="secondary" style="flex:1" onclick="closeModal()">Batal</button><button class="primary" style="flex:1" onclick="saveEdit('${id}')">Simpan</button></div></div></div>`}
+function saveEdit(id){let x=db.sales.find(v=>v.id===id),p=db.products.find(v=>v.id===ep.value),q=+eq.value;if(!x||!p||q<1)return;if(q>stock(p)+(p.id===x.pid?x.qty:0))return alert('Jumlah melebihi stok tersedia.');x.pid=p.id;x.name=p.name;x.qty=q;x.price=p.price;x.day=ed.value;x.editedAt=new Date().toISOString();save();closeModal();summary()}
+function deleteSale(id){let x=db.sales.find(v=>v.id===id);if(x&&confirm(`Hapus ${x.name} sebanyak ${x.qty} pcs? Stok akan kembali.`)){db.sales=db.sales.filter(v=>v.id!==id);save();summary()}}
+function closeModal(){modal.innerHTML=''}
+period.textContent='Hari ini: '+DAYS[now().getDay()]+', '+fmtDate(localDate())+' · Reset Sabtu';show('home');
+</script></body></html>
